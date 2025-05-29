@@ -1,0 +1,159 @@
+_schema-version: 3.3.0
+ID: incident-mgmt
+description: A simple CAP project.
+version: 1.0.0
+modules:
+- name: incident-mgmt-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: incident-mgmt-db
+  - name: incident-mgmt-auth
+  - name: incident-mgmt-destination
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+    instances: 1
+  build-parameters:
+    builder: npm-ci
+- name: incident-mgmt-db-deployer
+  type: hdb
+  path: gen/db
+  requires:
+  - name: incident-mgmt-db
+  parameters:
+    buildpack: nodejs_buildpack
+- name: incident-mgmt-app-deployer
+  type: com.sap.application.content
+  path: gen
+  requires:
+  - name: incident-mgmt-html5-repo-host
+    parameters:
+      content-target: true
+  build-parameters:
+    build-result: app/
+    requires:
+    - artifacts:
+      - incidents.zip
+      name: incidentmgmtincidents
+      target-path: app/
+    - artifacts:
+      - nsincidents.zip
+      name: nsincidents
+      target-path: app/
+- name: incidentmgmtincidents
+  type: html5
+  path: app/incidents
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+- name: incident-mgmt-destination-content
+  type: com.sap.application.content
+  requires:
+  - name: incident-mgmt-destination
+    parameters:
+      content-target: true
+  - name: incident-mgmt-html5-repo-host
+    parameters:
+      service-key:
+        name: incident-mgmt-html5-repo-host-key
+  - name: incident-mgmt-auth
+    parameters:
+      service-key:
+        name: incident-mgmt-auth-key
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Name: incident-mgmt_html_repo_host
+          ServiceInstanceName: incident-mgmt-html5-service
+          ServiceKeyName: incident-mgmt-html5-repo-host-key
+          sap.cloud.service: incident-mgmt
+        - Authentication: OAuth2UserTokenExchange
+          Name: incident-mgmt_uaa
+          ServiceInstanceName: incident-mgmt-xsuaa-service
+          ServiceKeyName: incident-mgmt-auth-key
+          sap.cloud.service: incident-mgmt
+        existing_destinations_policy: update
+  build-parameters:
+    no-source: true
+- name: nsincidents
+  type: html5
+  path: app/incidents
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+resources:
+- name: incident-mgmt-db
+  type: com.sap.xs.hdi-container
+  parameters:
+    service: hana
+    service-plan: hdi-shared
+- name: incident-mgmt-auth
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      tenant-mode: dedicated
+      xsappname: incident-mgmt-${org}-${space}
+    path: ./xs-security.json
+    service: xsuaa
+    service-name: incident-mgmt-xsuaa-service
+    service-plan: application
+- name: incident-mgmt-destination
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      init_data:
+        instance:
+          destinations:
+          - Authentication: NoAuthentication
+            HTML5.DynamicDestination: true
+            HTML5.ForwardAuthToken: true
+            Name: srv-api
+            ProxyType: Internet
+            Type: HTTP
+            URL: ~{srv-api/srv-url}
+          - Authentication: NoAuthentication
+            Name: ui5
+            ProxyType: Internet
+            Type: HTTP
+            URL: https://ui5.sap.com
+          - Authentication: NoAuthentication
+            HTML5.DynamicDestination: true
+            HTML5.ForwardAuthToken: true
+            Name: incident-mgmt-srv-api
+            ProxyType: Internet
+            Type: HTTP
+            URL: ~{srv-api/srv-url}
+          existing_destinations_policy: update
+    service: destination
+    service-plan: lite
+  requires:
+  - name: srv-api
+- name: incident-mgmt-html5-repo-host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-name: incident-mgmt-html5-service
+    service-plan: app-host
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+  - builder: custom
+    commands:
+    - npm ci
+    - npx cds build --production
