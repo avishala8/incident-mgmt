@@ -1,7 +1,7 @@
 {
   "name": "incidents",
   "version": "0.0.1",
-  "description": "An SAP Fiori application.",
+  "description": "An SAP Fiori application built with CAPM by Abhishek Vishala.",
   "keywords": [
     "ui5",
     "openui5",
@@ -10,8 +10,9 @@
   "main": "webapp/index.html",
   "dependencies": {},
   "devDependencies": {
-    "@ui5/cli": "^3.0.0",
+    "@sap/cds-dk": "^8",
     "@sap/ux-ui5-tooling": "1",
+    "@ui5/cli": "^3.0.0",
     "ui5-task-zipper": "^3"
   },
   "scripts": {
